@@ -4,14 +4,6 @@
 
 ref class BookCard : System::Windows::Forms::Panel {
 private:
-	System::Windows::Forms::ContextMenu^ cm;
-	System::Windows::Forms::PictureBox^ Cover;
-	System::Windows::Forms::Label^ Title;
-	System::Windows::Forms::Label^ Author;
-	System::Windows::Forms::Label^ Chapters;
-	System::Windows::Forms::Label^ ChaptersRead;
-	System::Windows::Forms::Label^ PercentageRead;
-
 	property bool openFlag2;
 public:
 
