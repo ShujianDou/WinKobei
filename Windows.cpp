@@ -7,6 +7,8 @@
 #include "BookAddForm.h"
 #include "CreditsForm.h"
 #include "VolumeCollapsible.h"
+#include <thread>
+#include "ResourceHandler.h"
 
 Window::Window(unsigned int w, unsigned int h) : Form(gcnew System::Windows::Forms::Form) {
 	windowDimension->operator()(w, h);
@@ -37,6 +39,8 @@ Window::~Window() {
 int Window::PageGeneration() {
 	Form->SuspendLayout();
 	
+	Resources::LoadResourceSystem();
+
 	toolStripDropDownButton1 = gcnew System::Windows::Forms::ToolStripDropDownButton();
 	importKTFBookToolStripMenuItem = gcnew System::Windows::Forms::ToolStripMenuItem();
 	exportAsKTFBookToolStripMenuItem = gcnew System::Windows::Forms::ToolStripMenuItem();
@@ -112,6 +116,7 @@ int Window::PageGeneration() {
 	fromUriToolStripMenuItem->Name = "fromUriToolStripMenuItem";
 	fromUriToolStripMenuItem->Size = System::Drawing::Size(180, 22);
 	fromUriToolStripMenuItem->Text = "From Uri";
+	fromUriToolStripMenuItem->Click += gcnew System::EventHandler(this, &Window::FromUriClick);
 	fromFolderToolStripMenuItem->Name = "fromFolderToolStripMenuItem";
 	fromFolderToolStripMenuItem->Size = System::Drawing::Size(180, 22);
 	fromFolderToolStripMenuItem->Text = "From Folder";
@@ -174,7 +179,6 @@ int Window::PageGeneration() {
 	SideBar->MouseLeave += gcnew System::EventHandler(this, &Window::SideBarLeave);
 
 	toolStripButton1->Click += gcnew System::EventHandler(this, &Window::ShowCredits);
-
 	HomePageGeneration();
 	tabControl->TabPages->Add(homePage);
 	AddPageGeneration();
@@ -187,6 +191,8 @@ int Window::PageGeneration() {
 	tabControl->TabPages->Add(emailSupportPage);
 	AboutPageGeneration();
 	tabControl->TabPages->Add(aboutPage);
+	ChaperPageGeneration();
+	tabControl->TabPages->Add(chapterDetailView);
 
 	Form->Controls->Add(toolStrip1);
 	Form->Controls->Add(SideBar);
@@ -200,13 +206,144 @@ int Window::PageGeneration() {
 
 int Window::HomePageGeneration() {
 	bool lastreadTrue = false;
-
 	if (homePage == nullptr)
 		homePage = gcnew System::Windows::Forms::TabPage;
-	else
+	else if (homePage->InvokeRequired) {
+		ClearControls^ delCon = gcnew ClearControls(this, &Window::ClearHomePageControls);
+		homePage->Invoke(delCon);
+		delete delCon;
+	}
+	else {
 		homePage->Controls->Clear();
+	}
+	if (homePage->InvokeRequired) {
+		SetSelectedIndex^ selInd = gcnew SetSelectedIndex(this, &Window::SetHomePageTabPageIndex);
+		homePage->Invoke(selInd, 0);
+		delete selInd;
+		SetDock^ setDock = gcnew SetDock(this, &Window::SetHomePageDockStyle);
+		homePage->Invoke(setDock, System::Windows::Forms::DockStyle::Fill);
+		delete setDock;
 
-	homePage->Dock = System::Windows::Forms::DockStyle::Fill;
+		//TODO: Finsh invocation usage.
+		int tLength = 80;
+		int tYSET = 20; // initial offset
+		System::Windows::Forms::PictureBox^ err;
+		switch (BookTable->Length() > 0) {
+		case 0: {
+			err = gcnew System::Windows::Forms::PictureBox;
+			err->Dock = System::Windows::Forms::DockStyle::Fill;
+			err->Image = System::Drawing::Bitmap::FromStream(Resources::GetObject("error_NoNovels.png"));
+			err->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
+			err->Click += gcnew System::EventHandler(this, &Window::BookAddOnClick);
+			homePage->Controls->Add(err);
+			System::Windows::Forms::Button^ AddBtn = gcnew System::Windows::Forms::Button;
+			AddBtn->Click += gcnew System::EventHandler(this, &Window::BookAddOnClick);
+			AddBtn->Text = "Add Book";
+			AddBtn->Width = windowDimension->Width;
+			AddBtn->Height = 100;
+			AddBtn->Location = System::Drawing::Point(((windowDimension->Width - AddBtn->Width) / 2) - 10, ((windowDimension->Height - AddBtn->Height) / 2));
+			AddBtn->FlatStyle = System::Windows::Forms::FlatStyle::Popup;
+
+			System::Windows::Forms::Panel^ UpdateBox = gcnew System::Windows::Forms::Panel;
+			System::Windows::Forms::PictureBox^ pic = gcnew System::Windows::Forms::PictureBox;
+			pic->Image = System::Drawing::Bitmap::FromStream(Resources::GetObject("SupportedSites.png"));
+			pic->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
+			pic->Dock = System::Windows::Forms::DockStyle::Fill;
+			UpdateBox->Controls->Add(pic);
+			UpdateBox->Dock = System::Windows::Forms::DockStyle::Bottom;
+			UpdateBox->Height = 150;
+			homePage->Controls->Add(UpdateBox);
+			break;
+		}
+		case 1: {
+			for (unsigned int idx = 0; idx < BookTable->Length(); idx++)
+			{
+				BookCard^ bc = gcnew BookCard(safe_cast<Book^>(BookTable(idx, true)), false);
+				bc->bookIndex = idx;
+
+				if (idx == 0) {
+					bc->Location = System::Drawing::Point(tLength, tYSET);
+				}
+				else {
+					tLength += bc->Width + 5;
+
+					if (tLength > Form->Width - bc->Width) {
+						tLength = 80;
+						tYSET += bc->Height + 5;
+					}
+
+					bc->Location = System::Drawing::Point(tLength, tYSET);
+				}
+
+				bc->OnOpen += gcnew BookCard::OpenHandler(this, &Window::OnOpen);
+				bc->OnUpdateCLClick += gcnew BookCard::OpenHandler(this, &Window::OnUpdateCLClick);
+				bc->OnCardClick += gcnew BookCard::CardHandler(this, &Window::CardClick);
+				homePage->Controls->Add(bc);
+			}
+			break;
+		}
+		}
+	}
+	else {
+		int tLength = 80;
+		int tYSET = 20; // initial offset
+		System::Windows::Forms::PictureBox^ err;
+		switch (BookTable->Length() > 0) {
+		case 0: {
+			err = gcnew System::Windows::Forms::PictureBox;
+			err->Dock = System::Windows::Forms::DockStyle::Fill;
+			err->Image = System::Drawing::Bitmap::FromStream(Resources::GetObject("error_NoNovels.png"));
+			err->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
+			err->Click += gcnew System::EventHandler(this, &Window::BookAddOnClick);
+			homePage->Controls->Add(err);
+			System::Windows::Forms::Button^ AddBtn = gcnew System::Windows::Forms::Button;
+			AddBtn->Click += gcnew System::EventHandler(this, &Window::BookAddOnClick);
+			AddBtn->Text = "Add Book";
+			AddBtn->Width = windowDimension->Width;
+			AddBtn->Height = 100;
+			AddBtn->Location = System::Drawing::Point(((windowDimension->Width - AddBtn->Width) / 2) - 10, ((windowDimension->Height - AddBtn->Height) / 2));
+			AddBtn->FlatStyle = System::Windows::Forms::FlatStyle::Popup;
+
+			System::Windows::Forms::Panel^ UpdateBox = gcnew System::Windows::Forms::Panel;
+			System::Windows::Forms::PictureBox^ pic = gcnew System::Windows::Forms::PictureBox;
+			pic->Image = System::Drawing::Bitmap::FromStream(Resources::GetObject("SupportedSites.png"));
+			pic->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
+			pic->Dock = System::Windows::Forms::DockStyle::Fill;
+			UpdateBox->Controls->Add(pic);
+			UpdateBox->Dock = System::Windows::Forms::DockStyle::Bottom;
+			UpdateBox->Height = 150;
+			homePage->Controls->Add(UpdateBox);
+			break;
+		}
+		case 1: {
+			for (unsigned int idx = 0; idx < BookTable->Length(); idx++)
+			{
+				BookCard^ bc = gcnew BookCard(safe_cast<Book^>(BookTable(idx, true)), false);
+				bc->bookIndex = idx;
+
+				if (idx == 0) {
+					bc->Location = System::Drawing::Point(tLength, tYSET);
+				}
+				else {
+					tLength += bc->Width + 5;
+
+					if (tLength > Form->Width - bc->Width) {
+						tLength = 80;
+						tYSET += bc->Height + 5;
+					}
+
+					bc->Location = System::Drawing::Point(tLength, tYSET);
+				}
+
+				bc->OnOpen += gcnew BookCard::OpenHandler(this, &Window::OnOpen);
+				bc->OnUpdateCLClick += gcnew BookCard::OpenHandler(this, &Window::OnUpdateCLClick);
+				bc->OnCardClick += gcnew BookCard::CardHandler(this, &Window::CardClick);
+				homePage->Controls->Add(bc);
+			}
+			break;
+		}
+		}
+	}
 	//homePage->BackColor = System::Drawing::Color::Red;
 	homePage->TabIndex = 0;
 	/*try {
@@ -220,72 +357,6 @@ int Window::HomePageGeneration() {
 	catch (...) {
 
 	}*/
-	System::Reflection::Assembly^ assembly = System::Reflection::Assembly::GetExecutingAssembly();
-
-	System::IO::Stream^ stream = assembly->GetManifestResourceStream("error_NoNovels.png");
-
-	int tLength = 80;
-	int tYSET = 0;
-	System::Windows::Forms::PictureBox^ err;
-	switch (BookTable->Length() > 0) {
-	case 0: {
-		err = gcnew System::Windows::Forms::PictureBox;
-		err->Dock = System::Windows::Forms::DockStyle::Fill;
-		err->Image = System::Drawing::Bitmap::FromStream(stream);
-		err->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
-		err->Click += gcnew System::EventHandler(this, &Window::BookAddOnClick);
-		homePage->Controls->Add(err);
-		System::Windows::Forms::Button^ AddBtn = gcnew System::Windows::Forms::Button;
-		AddBtn->Click += gcnew System::EventHandler(this, &Window::BookAddOnClick);
-		AddBtn->Text = "Add Book";
-		AddBtn->Width = windowDimension->Width;
-		AddBtn->Height = 100;
-		AddBtn->Location = System::Drawing::Point(((windowDimension->Width - AddBtn->Width) / 2) - 10, ((windowDimension->Height - AddBtn->Height) / 2));
-		AddBtn->FlatStyle = System::Windows::Forms::FlatStyle::Popup;
-
-		System::Windows::Forms::Panel^ UpdateBox = gcnew System::Windows::Forms::Panel;
-		System::Windows::Forms::PictureBox^ pic = gcnew System::Windows::Forms::PictureBox;
-		stream = assembly->GetManifestResourceStream("SupportedSites.png");
-		pic->Image = gcnew System::Drawing::Bitmap(stream);
-		pic->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
-		pic->Dock = System::Windows::Forms::DockStyle::Fill;
-		UpdateBox->Controls->Add(pic);
-		UpdateBox->Dock = System::Windows::Forms::DockStyle::Bottom;
-		UpdateBox->Height = 150;
-		homePage->Controls->Add(UpdateBox);
-		break; 
-	}
-	case 1: {
-		for (unsigned int idx = 0; idx < BookTable->Length(); idx++)
-		{
-			BookCard^ bc = gcnew BookCard(safe_cast<Book^>(BookTable(idx, true)), false);
-			bc->bookIndex = idx;
-
-			if (idx == 0) {
-				bc->Location = System::Drawing::Point(tLength, tYSET);
-			}
-			else {
-				tLength += bc->Width + 5;
-
-				if (tLength > Form->Width - bc->Width) {
-					tLength = 80;
-					tYSET += bc->Height + 5;
-				}
-
-				bc->Location = System::Drawing::Point(tLength, tYSET);
-			}
-
-			bc->OnOpen += gcnew BookCard::OpenHandler(this, &Window::OnOpen);
-			bc->OnUpdateCLClick += gcnew BookCard::OpenHandler(this, &Window::OnUpdateCLClick);
-			bc->MouseClick += gcnew System::Windows::Forms::MouseEventHandler(this, &Window::CardClick);
-			for (unsigned int i = 0; i < bc->Controls->Count; i++) {
-				bc->Controls[i]->MouseClick += gcnew System::Windows::Forms::MouseEventHandler(this, &Window::CardClick);
-			}
-			homePage->Controls->Add(bc);
-		}
-		break; 
-	}
-	}
 	return 0;
 }
 
@@ -331,6 +402,24 @@ int Window::AboutPageGeneration() {
 	aboutPage->TabIndex = 5;
 
 	return -1;
+}
+
+int Window::ChaperPageGeneration()
+{
+	if (currentChapter == nullptr) {
+		chapterDetailView = gcnew System::Windows::Forms::TabPage;
+		chapterDetailView->TabIndex = 6;
+		return -1;
+	}
+	else
+		chapterDetailView->Controls->Clear();
+
+	chapterDetailView->BackColor = System::Drawing::Color::Red;
+	chapterDetailView->Dock = System::Windows::Forms::DockStyle::Fill;
+	ChapterView^ chapviewer = gcnew ChapterView(currentChapter);
+	chapviewer->Dock = System::Windows::Forms::DockStyle::Fill;
+	chapterDetailView->Controls->Add(chapviewer);
+	return 0;
 }
 
 int Window::Create() {
@@ -402,23 +491,11 @@ void Window::OnSelectedIndexChanged(System::Object^ sender, System::EventArgs^ e
 	//throw gcnew System::NotImplementedException();
 }
 
-
-
 void Window::ShowSideBarMouseEnter(System::Object^ sender, System::EventArgs^ e)
 {
 	SideBar->Visible = true;
 	//ShowSideBar->Visible = false;
 }
-
-
-void Window::BookAddOnClick(System::Object^ sender, System::EventArgs^ e)
-{
-	Book^ b = BookAddForm::GetBook(TRUE);
-	delete homePage;
-	HomePageGeneration();
-	//throw gcnew System::NotImplementedException();
-}
-
 
 void Window::SideBarLeave(System::Object^ sender, System::EventArgs^ e)
 {
@@ -435,24 +512,11 @@ void Window::ShowCredits(System::Object^ sender, System::EventArgs^ e)
 }
 
 
-void Window::CardClick(System::Object^ sender, System::Windows::Forms::MouseEventArgs^ e)
+void Window::CardClick(BookCard^ sender)
 {
-	if (e->Button != System::Windows::Forms::MouseButtons::Right) {
-		Book^ b = safe_cast<BookCard^>(sender)->AttachedBook;
-		b->VolumeUpdate();
-		VolumeCollapsible^ volCol = gcnew VolumeCollapsible(b->Volumes);
-		volCol->AutoScroll = FALSE;
-		std::cout << "T";
-		//volCol->Controls->Clear();
-		volCol->Dock = System::Windows::Forms::DockStyle::Fill;
-		volCol->Width = bookViewPage->Width;
-		volCol->Height = bookViewPage->Height;
-		volCol->Controls->Clear();
-		volCol->GenerateControls();
-		bookViewPage->Controls->Add(volCol);
-		volCol->BackColor = System::Drawing::Color::Blue;
-		tabControl->SelectedIndex = 3;
-	}
+	currentBook = safe_cast<BookCard^>(sender);
+	System::Threading::Thread^ thread = gcnew System::Threading::Thread(gcnew System::Threading::ThreadStart(this, &Window::LoadNovelAsync));
+	thread->Start();
 }
 
 
@@ -499,3 +563,47 @@ void Window::OnUpdateCLClick(System::Object^ sender, System::EventArgs^ e)
 	safe_cast<BookCard^>(sender)->AttachedBook->numChapters = chapters;
 	safe_cast<BookCard^>(sender)->AttachedBook->Update();
 }
+
+void Window::LoadNovelAsync()
+{
+		Book^ b = currentBook->AttachedBook;
+		b->VolumeUpdate();
+		VolumeCollapsible^ volCol = gcnew VolumeCollapsible(b->Volumes);
+		volCol->AutoScroll = FALSE;
+		//volCol->Controls->Clear();
+		volCol->Dock = System::Windows::Forms::DockStyle::Fill;
+		volCol->Width = bookViewPage->Width;
+		volCol->Height = bookViewPage->Height;
+		volCol->Controls->Clear();
+		volCol->GenerateControls();
+		volCol->TriggerChapterOpen += gcnew VolumeCollapsible::EventHandler(this, &Window::OnTriggerChapterOpen);
+		bookViewPage->Controls->Add(volCol);
+		volCol->BackColor = System::Drawing::Color::Blue;
+		SetSelectedIndex^ d = gcnew SetSelectedIndex(this, &Window::SetTabControlSelectedIndex);
+		tabControl->Invoke(d, gcnew cli::array<System::Object^> {3});
+		delete d;
+		delete b;
+		return;
+}
+
+void Window::OnTriggerChapterOpen(VolumeCollapsible^ sender, System::EventArgs^ e, unsigned int i, Chapter^ chapter)
+{
+	currentChapter = chapter;
+	ChaperPageGeneration();
+	tabControl->SelectedIndex = 6;
+}
+
+void Window::FromUriClick(System::Object^ sender, System::EventArgs^ e)
+{
+	// Pass progress bar and label to GetBook function.
+	toolStripLabel1->Text = "BookFormLoaded : ";
+	toolStripProgressBar1->Increment(5);
+	System::Threading::Thread^ t2 = gcnew System::Threading::Thread(gcnew System::Threading::ThreadStart(this, &Window::DownloadBookPrompt));
+	t2->Start();
+	return;
+}
+
+System::Void Window::DownloadBookPrompt()
+{
+	HomePageGeneration();
+	Book^ b = BookAddForm::GetBook(TRUE);
