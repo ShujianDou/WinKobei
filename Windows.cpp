@@ -607,3 +607,14 @@ System::Void Window::DownloadBookPrompt()
 {
 	HomePageGeneration();
 	Book^ b = BookAddForm::GetBook(TRUE);
+	HomePageGeneration();
+	return System::Void();
+}
+
+void Window::BookAddOnClick(System::Object^ sender, System::EventArgs^ e)
+{
+	Book^ b = BookAddForm::GetBook(TRUE);
+	delete homePage;
+	HomePageGeneration();
+	//throw gcnew System::NotImplementedException();
+}
